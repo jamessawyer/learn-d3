@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>散点图</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" integrity="sha512-M7nHCiNUOwFt6Us3r8alutZLm9qMt4s9951uo8jqO4UwJ1hziseL6O3ndFyigx6+LREfZqnhHxYjKRJ8ZQ69DQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div id="wrapper"></div>
+    <script>
+        async function drawScatterChart() {
+            // 1. 读取数据
+            const dataset = await d3.json('../my_weather_data.json')
+            console.table(dataset[0])
+            const xAccessor = d => d.dewPoint // x轴数据
+            const yAccessor = d => d.humidity // y轴数据
+            const colorAccessor = d => d.cloudCover
+
+            // 2. 创建图形尺寸
+            const width = d3.min([
+                window.innerWidth * 0.9,
+                window.innerHeight * 0.9
+            ])
+
+            let dimensions = {
+                // 散点图一般是一个正方形
+                width: width,
+                height: width,
+                margin: {
+                    top: 10,
+                    right: 10,
+                    bottom: 50,
+                    left: 50
+                }
+            }
+            dimensions.boundedWidth = dimensions.width - dimensions.margin.left - dimensions.margin.right
+            dimensions.boundedHeight = dimensions.height - dimensions.margin.top - dimensions.margin.bottom
+
+            // 3 绘制画布
+            const wrapper = d3.select('#wrapper')
+                    .append('svg')
+                        .attr('width', dimensions.width)
+                        .attr('height', dimensions.height)
+                        .attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`)
+                        .style('border', '1px solid rgba(0,0,0,0.1)')
+
+            const bounds = wrapper.append('g')
+                .style('transform', `translate(${dimensions.margin.left}px,${dimensions.margin.top}px)`)
+
+
+            // 4. 创建比例尺
+            const xScale = d3.scaleLinear()
+                .domain(d3.extent(dataset, xAccessor))
+                .range([0, dimensions.boundedWidth])
+                .nice()
+
+            // console.log(xScale.domain()); // [-7.22, 73.83]
+            // xScale.nice()
+            // console.log(xScale.domain()); // [-10, 80]
+
+            const yScale = d3.scaleLinear()
+                .domain(d3.extent(dataset, yAccessor))
+                .range([dimensions.boundedHeight, 0])
+                .nice()
+            // console.log(d3.extent(dataset, yAccessor)) // ) [0.31, 0.97]
+            // console.log(yScale.domain()) // [0.3, 1]
+
+            const colorScale = d3.scaleLinear()
+                .domain(d3.extent(dataset, colorAccessor))
+                .range(['skyblue', 'darkslategray'])
+
+            // 5. 绘制数据
+            const dots = bounds.selectAll('circle')
+                .data(dataset)
+                .enter().append('circle')
+                    .attr('cx', d => xScale(xAccessor(d)))
+                    .attr('cy', d => yScale(yAccessor(d)))
+                    .attr('r', 5)
+                    // .attr('fill', 'cornflowerblue')
+                    .attr('fill', d => colorScale(colorAccessor(d)))
+
+            // 最原始的方式，但是数据更新后需要重新渲染
+            // dataset.forEach(d => {
+            //     bounds.append('circle')
+            //         .attr('cx', xScale(xAccessor(d)))
+            //         .attr('cy', yScale(yAccessor(d)))
+            //         .attr('r', 5)
+            //         .attr('fill', 'red')
+            // })
+            
+
+            // console.log('dots', dots);
+            // drawDots(dataset.slice(0, 200), 'grey')
+
+            // setTimeout(() => {
+            //     drawDots(dataset, 'red')
+            // }, 2000)
+            // function drawDots(dataset, color) {
+            //     const dots = bounds.selectAll('circle').data(dataset)
+
+            //     // join() 替代 .enter().append('circle').merge(dots)
+            //     dots.join('circle')
+            //         .attr('cx', d => xScale(xAccessor(d)))
+            //         .attr('cy', d => yScale(yAccessor(d)))
+            //         .attr('r', 5)
+            //         .attr('fill', color)
+            //     // dots.enter().append('circle')
+            //     //     .merge(dots)
+            //     //     .attr('cx', d => xScale(xAccessor(d)))
+            //     //     .attr('cy', d => yScale(yAccessor(d)))
+            //     //     .attr('r', 5)
+            //     //     .attr('fill', color)
+            // }
+
+            // 6. 绘制垂直坐标
+            const xAxisGenerator = d3.axisBottom(xScale)
+            const xAxis = bounds.append('g')
+                .call(xAxisGenerator)
+                    .style('transform', `translateY(${dimensions.boundedHeight}px)`)
+            
+            const xAxisLabel = xAxis.append('text')
+                .attr('x', dimensions.boundedWidth / 2)
+                .attr('y', dimensions.margin.bottom - 10)
+                .attr('fill', 'black')
+                .style('font-size', '1.4em')
+                .html('Dew point (&deg;F)')
+
+            const yAxisGenerator = d3.axisLeft(yScale)
+                .ticks(4)
+                // .tickValues([0.2, 0.6, 0.8, 1])
+            const yAxis = bounds.append('g')
+                .call(yAxisGenerator)
+
+            // 注意这里y轴标签的设置方式 都是相对于y轴的g元素所在的位置进行设置的
+            const yAxisLabel = yAxis.append('text')
+                .attr('x', -dimensions.boundedHeight / 2)
+                .attr('y', -dimensions.margin.left + 20)
+                .attr('fill', 'black')
+                .style('font-size', '1.4em')
+                .text('Relative humidity')
+                .style('transform', 'rotate(-90deg)')
+                .style('text-anchor', 'middle')
+                
+        }
+
+
+        drawScatterChart()
+    </script>
+</body>
+</html>

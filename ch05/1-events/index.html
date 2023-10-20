@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Event</title>
+        <link rel="stylesheet" href="./styles.css"></link>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" integrity="sha512-M7nHCiNUOwFt6Us3r8alutZLm9qMt4s9951uo8jqO4UwJ1hziseL6O3ndFyigx6+LREfZqnhHxYjKRJ8ZQ69DQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    </head>
+    <body>
+        <svg height="200" width="500" id="svg"></svg>
+
+        <script>
+            async function createEvent() {
+                const rectColors = [
+                    "yellowgreen",
+                    "cornflowerblue",
+                    "seagreen",
+                    "slateblue",
+                ]
+
+                // create and bind data to our rects
+                const rects = d3.select("#svg")
+                    .selectAll(".rect")
+                    .data(rectColors)
+                    .enter().append("rect")
+                    .attr("height", 100)
+                    .attr("width", 100)
+                    .attr("x", (d,i) => i * 110)
+                    .attr("fill", "lightgrey")
+
+                // your code here
+                rects.on('mouseenter', function(event, d, nodes) {
+                    console.log(arguments)
+                    console.log(this);
+                    d3.select(this).style('fill', d)
+                    .on('mouseout', function() {
+                        d3.select(this).style('fill', 'lightgrey')
+                    })
+                })
+
+                setTimeout(() => {
+                    rects
+                        .dispatch('mouseout')
+                        .on('mouseout', null)
+                        .on('mouseenter', null)
+                }, 3000)
+            }
+            createEvent()
+        </script>
+    </body>
+</html>

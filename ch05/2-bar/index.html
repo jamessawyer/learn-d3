@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直方图</title>
+    <!-- <link rel="stylesheet" href="./styles.css"></link> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" integrity="sha512-M7nHCiNUOwFt6Us3r8alutZLm9qMt4s9951uo8jqO4UwJ1hziseL6O3ndFyigx6+LREfZqnhHxYjKRJ8ZQ69DQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        .wrapper {
+            position: relative;
+        }
+
+        .bin rect {
+            fill: cornflowerblue;
+        }
+
+        .bin rect:hover {
+            fill: purple;
+        }
+
+        .bin text {
+            text-anchor: middle;
+            fill: darkgrey;
+            font-size: 12px;
+            font-family: sans-serif;
+        }
+
+        .mean {
+            stroke: maroon;
+            stroke-dasharray: 2px 4px;
+        }
+
+        .x-axis-label {
+            fill: black;
+            font-size: 1.4em;
+            text-transform: capitalize;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            padding: 5em 2em;
+            font-family: sans-serif;
+        }
+
+        .tooltip {
+            opacity: 0;
+            position: absolute;
+            top: -12px;
+            left: 0;
+            padding: 0.6em 1em;
+            background: #fff;
+            text-align: center;
+            border: 1px solid #ddd;
+            z-index: 10;
+            transition: all 0.2s ease-out;
+            pointer-events: none;
+        }
+
+        .tooltip:before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border: 1px solid #ddd;
+            border-top-color: transparent;
+            border-left-color: transparent;
+            transform: translate(-50%, 50%) rotate(45deg);
+            transform-origin: center center;
+            z-index: 10;
+        }
+
+        .tooltip-range {
+            margin-bottom: 0.2em;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper" class="wrapper">
+        <div id="tooltip" class="tooltip">
+            <div class="tooltip-range">
+                Humidity: <span id="range"></span>
+            </div>
+            <div class="tooltip-value">
+                <span id="count"></span> days
+            </div>
+        </div>
+    </div>
+    <script>
+        async function drawHistogramChart() {
+            // 1. 读取数据
+            const dataset = await d3.json('../../my_weather_data.json')
+            console.table(dataset[0])
+            const metricAccessor = d => d.humidity
+            const yAccessor = d => d.length
+            
+            // 2. 创建图形尺寸
+            const width = 600
+            let dimensions = {
+                width: width,
+                height: width * 0.6,
+                margin: {
+                    top: 30,
+                    right: 10,
+                    bottom: 50,
+                    left: 50,
+                }
+            }
+            dimensions.boundedWidth = dimensions.width - dimensions.margin.left - dimensions.margin.right
+            dimensions.boundedHeight = dimensions.height - dimensions.margin.top - dimensions.margin.bottom
+
+            // 3. 绘制画布
+            const wrapper = d3.select('#wrapper')
+                .append('svg')
+                    .attr('width', dimensions.width)
+                    .attr('height', dimensions.height)
+
+            const bounds = wrapper.append('g')
+                .style('transform', `translate(${dimensions.margin.left}px,${dimensions.margin.top}px)`)
+
+            // 静态元素
+            bounds.append("g")
+                .attr("class", "bins")
+            bounds.append("line")
+                .attr("class", "mean")
+            bounds.append("g")
+                .attr("class", "x-axis")
+                .style("transform", `translateY(${dimensions.boundedHeight}px)`)
+                .append("text")
+                .attr("class", "x-axis-label")
+
+            // 4. 创建比例尺
+            const xScale = d3.scaleLinear()
+                .domain(d3.extent(dataset, metricAccessor))
+                .range([0, dimensions.boundedWidth])
+                .nice()
+            
+            // !!! 重点部分
+            // Y轴比例尺 需要对数据进行加工之后确定
+            // d3.bin用于将数据设置为定量值
+            const binsGenerator = d3.bin()
+                .domain(xScale.domain())
+                .value(metricAccessor)
+                .thresholds(12) // 12 + 1
+                
+            // bins 可以理解为桶，每个桶中装着不同的数据
+            const bins = binsGenerator(dataset)
+            console.log(bins[0])
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(bins, yAccessor)])
+                .range([dimensions.boundedHeight, 0])
+                .nice()
+
+            // 5. 绘制数据
+       
+            const barPadding = 1
+            let binGroups = bounds.select('.bins')
+                .selectAll('.bin')
+                .data(bins)
+
+            binGroups.exit()
+                .remove()
+
+            const newBinGroups = binGroups.enter().append("g")
+                .attr("class", "bin")
+
+            newBinGroups.append("rect")
+            newBinGroups.append("text")
+
+            // update binGroups to include new points
+            binGroups = newBinGroups.merge(binGroups)
+
+
+
+            const barRects = binGroups.select("rect")
+                .attr('x', d => xScale(d.x0) + barPadding)
+                .attr('y', d => yScale(yAccessor(d)))
+                .attr('width', d => d3.max([0, xScale(d.x1) - xScale(d.x0) - barPadding])) // ?
+                .attr('height', d => dimensions.boundedHeight - yScale(yAccessor(d)))
+                .attr('fill', 'cornflowerblue')
+
+            const barText = binGroups.select('text')
+                    .attr('x', d => xScale(d.x0) + (xScale(d.x1) - xScale(d.x0)) / 2)
+                    .attr('y', d => yScale(yAccessor(d)) - 10)
+                    .text(yAccessor)
+                    .attr('fill', 'darkgrey')
+                    .style('text-anchor', 'middle')
+                    .attr('alignment-baseline', 'central')
+                    .style('font-size', '12px')
+                    .style('font-family', 'sans-serif')
+
+            // 添加中位数
+            const mean = d3.mean(dataset, metricAccessor)
+
+            console.log('xScale(mean)', xScale(mean));
+            console.log('xScale.invert(mean)', xScale.invert(mean));
+            const meanLine = bounds.selectAll(".mean")
+                .attr('x1', xScale(mean))
+                .attr('x2', xScale(mean))
+                .attr('y1', -15)
+                .attr('y2', dimensions.boundedHeight)
+                .attr('stroke', 'maroon')
+                .attr('stroke-dasharray', '2px 4px')
+
+            const meanLabel = bounds.append('text')
+                .attr('x', xScale(mean))
+                .attr('y', -20)
+                .text('中位数')
+                .attr('fill', 'maroon')
+                .style('font-size', '12px')
+                .style('text-anchor', 'middle')
+
+            // 6. 绘制垂直坐标
+            const xAxisGenerator = d3.axisBottom(xScale)
+            const xAxis = bounds.select(".x-axis")
+                .call(xAxisGenerator)
+                .style('transform', `translateY(${dimensions.boundedHeight}px)`)
+
+            const xAxisLabel = xAxis.select(".x-axis-label")
+                .attr('x', dimensions.boundedWidth / 2)
+                .attr('y', dimensions.margin.bottom - 10)
+                .attr('fill', 'black')
+                .style('font-size', '1.4em')
+                .style('text-anchor', 'middle')
+                .text('Humidity')
+
+            binGroups.select('rect')
+                .on('mouseenter', onMouseEnter)
+                .on('mouseleave', onMouseLeave)
+
+            const tooltip = d3.select('#tooltip')
+            function onMouseEnter(event, d) {
+                tooltip.select('#count')
+                    .text(yAccessor(d))
+
+                console.log('d', d);
+                const formatHumidity = d3.format('.2f')
+                tooltip.select('#range')
+                    .text([
+                        formatHumidity(d.x0),
+                        formatHumidity(d.x1)
+                    ].join(' - '))
+
+                const x = xScale(d.x0) // x轴的位置
+                     + (xScale(d.x1) - xScale(d.x0)) / 2 // bar宽度的一半
+                     + dimensions.margin.left // 距离左边的距离
+
+                const y = yScale(yAccessor(d)) + dimensions.margin.top
+
+                tooltip.style('transform', `translate(`
+                    + `calc(-50% + ${x}px),`
+                    + `calc(-100% + ${y}px)`
+                + `)`)
+                .style('opacity', 1)
+            }
+            function onMouseLeave(event, d) {
+                tooltip.style('opacity', 0)
+            }
+        }
+
+        drawHistogramChart()
+    </script>
+</body>
+</html>
